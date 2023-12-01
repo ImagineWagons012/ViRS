@@ -23,6 +23,7 @@ fn movement(
 ) -> io::Result<()> {
     let buffer = &context.buffer;
     let (x, y) = cursor::position()?;
+    let (_size_x, size_y) = terminal::size()?;
     match code {
         KeyCode::Left => {
             if x > 0 {
@@ -31,33 +32,54 @@ fn movement(
             }
         }
         KeyCode::Right => {
-            if buffer[y as usize].len() > x as usize {
+            if buffer[context.top + y as usize].len() > x as usize {
                 execute!(io::stdout(), MoveTo(x + 1, y))?;
                 context.last_x = x + 1;
             }
         }
         KeyCode::Up => {
+            let buffer_y = context.top + y as usize;
             if y > 0 {
-                if (context.last_x as usize) > buffer[y as usize - 1].len() {
+                if (context.last_x as usize) > buffer[buffer_y - 1].len() {
                     execute!(
                         io::stdout(),
-                        MoveTo(buffer[y as usize - 1].len() as u16, y - 1)
+                        MoveTo(buffer[buffer_y - 1].len() as u16, y - 1)
                     )?;
                 } else {
                     execute!(io::stdout(), MoveTo(context.last_x, y - 1))?;
                 }
+            } else if context.top > 0 {
+                context.top -= 1;
+                context.write_buf_to_screen(context.top)?;
+                execute!(io::stdout(), MoveTo(x,y))?;
             }
         }
         KeyCode::Down => {
-            if (y as usize) < buffer.len() - 1 {
-                if (context.last_x as usize) > buffer[y as usize + 1].len() {
-                    execute!(
-                        io::stdout(),
-                        MoveTo(buffer[y as usize + 1].len() as u16, y + 1)
-                    )?;
+            let buffer_y = y as usize + context.top;
+
+            if buffer_y + 1 < buffer.len() {
+                if y != size_y-1 {
+                    if (context.last_x as usize) > buffer[buffer_y + 1].len() {
+                        execute!(
+                            io::stdout(),
+                            MoveTo(buffer[buffer_y + 1].len() as u16, y + 1)
+                        )?;
+                    } else {
+                        execute!(io::stdout(), MoveTo(context.last_x, y + 1))?;
+                    }
                 } else {
-                    execute!(io::stdout(), MoveTo(context.last_x, y + 1))?;
-                }
+                    context.top += 1;
+                    execute!(io::stdout(), MoveTo(0, 0))?;
+                    context.write_buf_to_screen(context.top)?;
+                    if (context.last_x as usize) > buffer[buffer_y + 1].len() {
+                        execute!(
+                            io::stdout(),
+                            MoveTo(buffer[buffer_y].len() as u16, y)
+                        )?;
+                    } else {
+                        execute!(io::stdout(), MoveTo(context.last_x, y))?;
+                    }
+                }    
             }
         }
         _ => (),
@@ -69,7 +91,10 @@ fn main() -> std::io::Result<()> {
     let mut context = BufferContext {
         buffer: vec![vec![]],
         last_x: 0,
+        top: 0,
         mode: BufferMode::Insert,
+        name: "buffer.rs".to_string(),
+        path: "./src/".to_string(),
     };
 
     execute!(
@@ -86,16 +111,10 @@ fn main() -> std::io::Result<()> {
     // let mut args = args();
     // let path = args.nth(1).unwrap();
 
-    context.read_file("./src/buffer.rs".to_string())?;
+    context.read_file(None)?;
     context.write_buf_to_screen(0)?;
 
-    execute!(
-        io::stdout(),
-        MoveTo(
-            context.buffer[context.buffer.len() - 1].len() as u16,
-            context.buffer.len() as u16 - 1
-        )
-    )?;
+    execute!(io::stdout(), MoveTo(0, 0))?;
     'a: loop {
         if let Ok(event) = event::read() {
             match event {
