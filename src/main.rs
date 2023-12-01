@@ -8,7 +8,7 @@ use crossterm::{
     },
 };
 use std::{
-    // env::args,
+    env::args,
     io,
 };
 
@@ -88,15 +88,7 @@ fn movement(
 }
 
 fn main() -> std::io::Result<()> {
-    let mut context = BufferContext {
-        buffer: vec![vec![]],
-        last_x: 0,
-        top: 0,
-        mode: BufferMode::Insert,
-        name: "buffer.rs".to_string(),
-        path: "./src/".to_string(),
-    };
-
+    
     execute!(
         std::io::stdout(),
         SavePosition,
@@ -107,9 +99,17 @@ fn main() -> std::io::Result<()> {
         DisableLineWrap,
     )?;
     terminal::enable_raw_mode()?;
+    
+    let mut args = args();
+    let path = args.nth(1).unwrap();
 
-    // let mut args = args();
-    // let path = args.nth(1).unwrap();
+    let mut context = BufferContext {
+        buffer: vec![vec![]],
+        last_x: 0,
+        top: 0,
+        mode: BufferMode::Insert,
+        path,
+    };
 
     context.read_file(None)?;
     context.write_buf_to_screen(0)?;
@@ -133,14 +133,19 @@ fn main() -> std::io::Result<()> {
                     code: KeyCode::Delete,
                     ..
                 }) => {
-                    context.write_buf_to_file("test.txt".to_string())?;
+                    context.write_buf_to_file()?;
                 }
                 Key(KeyEvent {
                     code: KeyCode::Enter,
                     ..
                 }) => {
-                    context.buffer.push(vec![]);
+                    let (x,y) = cursor::position()?;
+                    let buffer_y = y as usize + context.top;
+                    context.buffer.insert(buffer_y+1, vec![]);
+                    context.write_buf_to_screen(context.top)?;
+                    execute!(io::stdout(), MoveTo(x, y))?;
                     execute!(io::stdout(), MoveDown(1), MoveToColumn(0))?;
+                    
                 }
                 Key(KeyEvent {
                     code: KeyCode::Char(c),

@@ -14,7 +14,6 @@ pub struct BufferContext {
     pub last_x: u16,
     pub top: usize,
     pub mode: BufferMode,
-    pub name: String,
     pub path: String,
 }
 
@@ -80,8 +79,11 @@ impl BufferContext {
         Ok(())
     }
     pub fn read_file(&mut self, path_opt: Option<String>) -> io::Result<()> {
-        let path = path_opt.unwrap_or(self.path.clone() + &self.name);
-        let file_string = read_to_string(path)?;
+        let path = path_opt.unwrap_or(self.path.clone());
+        let file_string = match read_to_string(path){
+            Ok(content) => content,
+            Err(_) => return Ok(()),
+        };
         let lines = file_string.split('\n').collect::<Vec<&str>>();
         for (i, line) in lines.iter().enumerate() {
             for char in line.chars() {
@@ -91,8 +93,8 @@ impl BufferContext {
         }
         Ok(())
     }
-    pub fn write_buf_to_file(&self, path: String) -> io::Result<()> {
-        let mut file = fs::File::create(path)?;
+    pub fn write_buf_to_file(&self) -> io::Result<()> {
+        let mut file = fs::File::create(self.path.clone())?;
         for line in &self.buffer {
             let mut final_line = vec![];
             let mut buf = [0; 4];
@@ -197,3 +199,13 @@ pub enum BufferMode {
     Normal,
     Insert,
 }
+
+
+
+
+
+
+
+
+
+
