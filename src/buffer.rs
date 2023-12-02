@@ -86,16 +86,20 @@ impl BufferContext {
         };
         let lines = file_string.split('\n').collect::<Vec<&str>>();
         for (i, line) in lines.iter().enumerate() {
-            for char in line.chars() {
-                self.buffer[i].push(char);
+            if i > 0 {
+                self.buffer.push(vec![]);
             }
-            self.buffer.push(vec![]);
+            for char in line.chars() {
+                if char != '\n' {
+                    self.buffer[i].push(char);
+                }
+            }
         }
         Ok(())
     }
     pub fn write_buf_to_file(&self) -> io::Result<()> {
         let mut file = fs::File::create(self.path.clone())?;
-        for line in &self.buffer {
+        for (i, line) in self.buffer.iter().enumerate() {
             let mut final_line = vec![];
             let mut buf = [0; 4];
             for char in line {
@@ -104,9 +108,11 @@ impl BufferContext {
                     final_line.push(*byte);
                 }
             }
-            '\n'.encode_utf8(&mut buf);
-            for byte in buf[0..'\n'.len_utf8()].iter() {
-                final_line.push(*byte);
+            if i != self.buffer.len()-1 || !line.is_empty() {
+                '\n'.encode_utf8(&mut buf);
+                for byte in buf[0..'\n'.len_utf8()].iter() {
+                    final_line.push(*byte);
+                }
             }
             file.write_all(&final_line)?;
         }
@@ -148,12 +154,7 @@ impl BufferContext {
     pub fn delete_char(&mut self) -> io::Result<()> {
         let (x, y) = cursor::position()?;
         let buffer_y = self.top + y as usize;
-        // let deletion_length;
         if x > 0 {
-            // deletion_length = self.buffer[y as usize][(x - 1) as usize..self.buffer[y as usize].len()]
-            // .iter()
-            // .map(|x| x.len_utf8())
-            // .sum::<usize>();
             self.buffer[buffer_y].remove((x - 1) as usize);
             self.clear_ln(Some((x - 1) as usize))?;
             execute!(io::stdout(), MoveTo(x - 1, y))?;
@@ -172,22 +173,6 @@ impl BufferContext {
             execute!(io::stdout(), MoveTo(x, y - 1))?;
         }
 
-        let (x, y) = cursor::position()?;
-
-        // io::stdout().write_all(vec![b' '; deletion_length].as_ref())?;
-
-        // let mut final_printout = vec![];
-        // for char in self.buffer[y as usize][x as usize..self.buffer[y as usize].len()].iter() {
-        //     let char_buf = &mut [0; 4];
-        //     char.encode_utf8(char_buf);
-        //     for byte in char_buf {
-        //         final_printout.push(*byte);
-        //     }
-        // }
-        // io::stdout().write_all(&final_printout)?;
-
-        execute!(io::stdout(), MoveTo(x, y))?;
-
         let (x, _) = cursor::position()?;
         self.last_x = x;
 
@@ -198,14 +183,5 @@ impl BufferContext {
 pub enum BufferMode {
     Normal,
     Insert,
+    Highlight,
 }
-
-
-
-
-
-
-
-
-
-
