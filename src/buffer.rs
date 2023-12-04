@@ -181,7 +181,7 @@ impl BufferContext {
 }
 
 pub enum BufferMode {
-    Normal,
+    Command,
     Insert,
     Highlight,
 }
